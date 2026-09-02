@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireUser } from "@/lib/supabase/requireUser";
 
 // Simple in-memory cache (per server process) to avoid burning Google's free
 // 100-query/day quota on repeat lookups of the same place.
 const cache = new Map<string, string | null>();
 
 export async function GET(req: NextRequest) {
+  const auth = await requireUser();
+  if ("unauthorized" in auth) return auth.unauthorized;
+
   const q = req.nextUrl.searchParams.get("q");
   if (!q) return NextResponse.json({ url: null });
 

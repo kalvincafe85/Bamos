@@ -1,39 +1,33 @@
 "use client";
 
 import type { Itinerary } from "./schema";
+import { createClient } from "./supabase/client";
 
-const STORAGE_KEY = "bamos.itineraries";
-const LEGACY_STORAGE_KEY = "routecraft.itineraries";
-
-export function loadItineraries(): Itinerary[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw) as Itinerary[];
-    const legacyRaw = window.localStorage.getItem(LEGACY_STORAGE_KEY);
-    if (!legacyRaw) return [];
-    const legacy = JSON.parse(legacyRaw) as Itinerary[];
-    window.localStorage.setItem(STORAGE_KEY, legacyRaw);
-    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
-    return legacy;
-  } catch {
-    return [];
-  }
+export async function loadItineraries(): Promise<Itinerary[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase.from("itineraries").select("data");
+  if (error || !data) return [];
+  return data.map((row) => row.data as Itinerary);
 }
 
-export function saveItinerary(itinerary: Itinerary): void {
-  const all = loadItineraries();
-  const idx = all.findIndex((i) => i.id === itinerary.id);
-  if (idx >= 0) {
-    all[idx] = itinerary;
-  } else {
-    all.push(itinerary);
-  }
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+export async function saveItinerary(itinerary: Itinerary): Promise<void> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase.from("itineraries").upsert({
+    id: itinerary.id,
+    owner_id: user.id,
+    data: itinerary,
+    updated_at: new Date().toISOString(),
+  });
 }
 
-export function getItinerary(id: string): Itinerary | undefined {
-  return loadItineraries().find((i) => i.id === id);
+export async function getItinerary(id: string): Promise<Itinerary | undefined> {
+  const supabase = createClient();
+  const { data } = await supabase.from("itineraries").select("data").eq("id", id).maybeSingle();
+  return (data?.data as Itinerary | undefined) ?? undefined;
 }
 
 function lastDate(itinerary: Itinerary): string {

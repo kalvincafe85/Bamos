@@ -13,6 +13,7 @@ import DayTimelineSheet from "./DayTimelineSheet";
 import CalendarDayView from "./CalendarDayView";
 import WeekCalendarView from "./WeekCalendarView";
 import ThemeToggle from "./ThemeToggle";
+import SharePopover from "./SharePopover";
 import Icon from "./Icon";
 
 export default function ItineraryView({
@@ -30,6 +31,7 @@ export default function ItineraryView({
   const [weatherByDate, setWeatherByDate] = useState<Record<string, DailyWeather>>({});
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [weekViewOpen, setWeekViewOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     const dates = itinerary.days.map((d) => d.date);
@@ -103,6 +105,7 @@ export default function ItineraryView({
                   onOpenWeekView={
                     editable && onItineraryChange ? () => setWeekViewOpen(true) : undefined
                   }
+                  onShare={() => setShareOpen(true)}
                   destination={itinerary.destination}
                   isFirstDay={activeDay === 0}
                   isLastDay={activeDay === itinerary.days.length - 1}
@@ -110,8 +113,18 @@ export default function ItineraryView({
               )
             ) : (
               <>
+                <div className="mb-1 flex justify-end gap-2 px-4 pt-4">
+                  <ThemeToggle />
+                  <button
+                    onClick={() => setShareOpen(true)}
+                    aria-label="分享行程"
+                    className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"
+                  >
+                    <Icon name="ios_share" className="text-xl" />
+                  </button>
+                </div>
                 {editable && day && (
-                  <div className="px-4 pt-4">
+                  <div className="px-4">
                     <button
                       onClick={() => setTimelineOpen(true)}
                       className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-teal-300 bg-teal-50 py-2.5 text-sm font-semibold text-teal-700"
@@ -164,6 +177,13 @@ export default function ItineraryView({
                   <Icon name="view_agenda" className="text-xl" />
                 </button>
                 <button
+                  onClick={() => setShareOpen(true)}
+                  aria-label="分享行程"
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"
+                >
+                  <Icon name="ios_share" className="text-xl" />
+                </button>
+                <button
                   disabled
                   aria-label="全部收合（僅日檢視可用）"
                   className="flex h-10 w-10 cursor-not-allowed items-center justify-center rounded-full bg-neutral-100 text-neutral-300 dark:bg-neutral-800 dark:text-neutral-600"
@@ -190,6 +210,8 @@ export default function ItineraryView({
           </div>
         </div>
       </div>
+
+      {shareOpen && <SharePopover itineraryId={itinerary.id} onClose={() => setShareOpen(false)} />}
     </div>
   );
 }

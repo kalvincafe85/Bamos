@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateItineraryDraft } from "@/lib/generate";
 import type { Itinerary } from "@/lib/schema";
+import { requireUser } from "@/lib/supabase/requireUser";
 
 export async function POST(req: NextRequest) {
+  const auth = await requireUser();
+  if ("unauthorized" in auth) return auth.unauthorized;
+
   try {
     const { text, homeAddress } = await req.json();
     if (!text || typeof text !== "string" || !text.trim()) {

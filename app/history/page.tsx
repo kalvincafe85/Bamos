@@ -11,10 +11,10 @@ export default function HistoryPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
-    const { past } = splitUpcomingAndPast(loadItineraries());
-    // Reading localStorage: unavailable during SSR, so this must run post-mount.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setPast(past);
+    loadItineraries().then((all) => {
+      const { past } = splitUpcomingAndPast(all);
+      setPast(past);
+    });
   }, []);
 
   if (!past.length) {

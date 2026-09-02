@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { estimateTravelMinutes } from "@/lib/generate";
+import { requireUser } from "@/lib/supabase/requireUser";
 
 export async function POST(req: NextRequest) {
+  const auth = await requireUser();
+  if ("unauthorized" in auth) return auth.unauthorized;
+
   try {
     const { from, to, mode } = await req.json();
     if (!from || !to || !mode) {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireUser } from "@/lib/supabase/requireUser";
 
 // Simple in-memory cache (per server process) to avoid burning quota on repeat
 // lookups of the same origin/destination/mode combo.
@@ -7,6 +8,9 @@ const cache = new Map<string, number | null>();
 const MODE_MAP = { car: "driving", walk: "walking", transit: "transit" } as const;
 
 export async function GET(req: NextRequest) {
+  const auth = await requireUser();
+  if ("unauthorized" in auth) return auth.unauthorized;
+
   const from = req.nextUrl.searchParams.get("from");
   const to = req.nextUrl.searchParams.get("to");
   const mode = req.nextUrl.searchParams.get("mode") as keyof typeof MODE_MAP | null;

@@ -45,6 +45,7 @@ export default function CalendarDayView({
   editable = false,
   onDayChange,
   onOpenWeekView,
+  onShare,
   destination = "",
   isFirstDay = false,
   isLastDay = false,
@@ -55,6 +56,8 @@ export default function CalendarDayView({
   // When set, a calendar icon is rendered alongside the edit/collapse buttons,
   // switching to the full week-view calendar for this trip.
   onOpenWeekView?: () => void;
+  // When set, a share icon opens the share-link popover for this trip.
+  onShare?: () => void;
   // Used as context for the AI when filling in a manually-added activity's details.
   destination?: string;
   // Whether this is the trip's first/last day — used to show the editable
@@ -390,6 +393,15 @@ export default function CalendarDayView({
               className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"
             >
               <Icon name="calendar_month" className="text-xl" />
+            </button>
+          )}
+          {onShare && (
+            <button
+              onClick={onShare}
+              aria-label="分享行程"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"
+            >
+              <Icon name="ios_share" className="text-xl" />
             </button>
           )}
           <button

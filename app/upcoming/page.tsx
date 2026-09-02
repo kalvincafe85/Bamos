@@ -29,22 +29,23 @@ function UpcomingPageInner() {
 
   const [upcoming, setUpcoming] = useState<Itinerary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState<"idle" | "generating" | "error">(
     generatingId ? "generating" : "idle"
   );
   const [error, setError] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(ESTIMATED_SECONDS);
 
-  function refresh(preferId?: string) {
-    const { upcoming } = splitUpcomingAndPast(loadItineraries());
+  async function refresh(preferId?: string) {
+    const { upcoming } = splitUpcomingAndPast(await loadItineraries());
     setUpcoming(upcoming);
+    setLoaded(true);
     if (preferId) setSelectedId(preferId);
     else if (!selectedId && upcoming.length) setSelectedId(upcoming[0].id);
   }
 
   useEffect(() => {
-    // Reading localStorage: unavailable during SSR, so this must run post-mount.
-    // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     refresh();
   }, []);
 
@@ -76,13 +77,13 @@ function UpcomingPageInner() {
       .then(async (res) => {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "生成失敗");
-        saveItinerary(data.itinerary as Itinerary);
+        await saveItinerary(data.itinerary as Itinerary);
         window.sessionStorage.removeItem(PENDING_TEXT_KEY);
         window.sessionStorage.removeItem(PENDING_ID_KEY);
         window.sessionStorage.removeItem(PENDING_HOME_ADDRESS_KEY);
         clearInterval(timer);
         setStatus("idle");
-        refresh(data.itinerary.id);
+        await refresh(data.itinerary.id);
         router.replace("/upcoming");
       })
       .catch((err) => {
@@ -125,6 +126,14 @@ function UpcomingPageInner() {
     );
   }
 
+  if (!loaded) {
+    return (
+      <div className="flex h-[70vh] flex-col items-center justify-center gap-3 px-6 text-center">
+        <Icon name="progress_activity" className="animate-spin text-3xl text-teal-600" />
+      </div>
+    );
+  }
+
   if (!upcoming.length) {
     return (
       <div className="flex h-[70vh] flex-col items-center justify-center gap-3 px-6 text-center">
@@ -147,8 +156,11 @@ function UpcomingPageInner() {
         editable
         viewMode="calendar"
         onItineraryChange={(updated) => {
-          saveItinerary(updated);
-          refresh(updated.id);
+          // Update local state immediately so drag/resize interactions stay
+          // responsive; persist in the background and reconcile (e.g. if a date
+          // edit moved the trip out of the "upcoming" bucket) once it lands.
+          setUpcoming((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+          saveItinerary(updated).then(() => refresh(updated.id));
         }}
       />
     </div>
