@@ -398,12 +398,15 @@ export default function CalendarDayView({
     const blocks = [...day.blocks];
     blocks[index] = { ...block, originMapUrl: originUrl, destinationMapUrl: destinationUrl };
 
-    async function reestimateLeg(transitIndex: number, from: string, to: string) {
+    // Also updates the transit's displayed from/to labels — previously only
+    // `minutes` was refreshed, leaving the row showing whichever activities
+    // used to be adjacent before the insert/edit that made this leg stale.
+    async function reestimateLeg(transitIndex: number, from: string, to: string, fromLabel: string, toLabel: string) {
       const transit = blocks[transitIndex] as TransitBlock;
       const estimated = await estimateTravelTimeAI(from, to, transit.mode);
       if (estimated == null) return;
       const minutes = roundUpToQuarterHour(estimated);
-      blocks[transitIndex] = { ...transit, minutes: estimated };
+      blocks[transitIndex] = { ...transit, from: fromLabel, to: toLabel, minutes: estimated };
       const { startMin, endMin } = blockTimeRange(blocks[transitIndex]);
       if (endMin - startMin !== minutes) {
         const updated = resizeBlockEdge({ ...day, blocks }, transitIndex, "end", startMin + minutes, lockedTimes);
@@ -411,20 +414,30 @@ export default function CalendarDayView({
       }
     }
 
-    const prevBlock = day.blocks[index - 1];
-    if (originUrl.trim() && destinationUrl.trim() && prevBlock?.type === "transit") {
-      await reestimateLeg(index - 1, originUrl.trim(), destinationUrl.trim());
+    const prevActivity = day.blocks[index - 2];
+    const prevTransit = day.blocks[index - 1];
+    if (
+      originUrl.trim() &&
+      destinationUrl.trim() &&
+      prevTransit?.type === "transit" &&
+      prevActivity?.type === "activity"
+    ) {
+      await reestimateLeg(index - 1, originUrl.trim(), destinationUrl.trim(), prevActivity.title, block.title);
     }
 
+    // The next activity doesn't need its own map URL set — falls back to its
+    // mapQuery/title, same as the insert flow, so this isn't silently skipped
+    // just because only one side of the leg has a precise URL.
     const nextTransit = day.blocks[index + 1];
     const nextActivity = day.blocks[index + 2];
-    if (
-      destinationUrl.trim() &&
-      nextTransit?.type === "transit" &&
-      nextActivity?.type === "activity" &&
-      nextActivity.destinationMapUrl?.trim()
-    ) {
-      await reestimateLeg(index + 1, destinationUrl.trim(), nextActivity.destinationMapUrl.trim());
+    if (destinationUrl.trim() && nextTransit?.type === "transit" && nextActivity?.type === "activity") {
+      await reestimateLeg(
+        index + 1,
+        destinationUrl.trim(),
+        locationQuery(nextActivity),
+        block.title,
+        nextActivity.title
+      );
     }
 
     onDayChange({ ...day, blocks });
@@ -646,6 +659,9 @@ export default function CalendarDayView({
                   homeAddress={homeAddress}
                   onHomeAddressChange={handleHomeAddressChange}
                   onMapUrlsChange={(originUrl, destinationUrl) => handleMapUrlsChange(i, originUrl, destinationUrl)}
+                  previousActivityTitle={
+                    day.blocks[i - 1]?.type === "activity" ? (day.blocks[i - 1] as ActivityBlock).title : undefined
+                  }
                   expanded={!collapsedIndices.has(i)}
                   onExpandedChange={(exp) =>
                     setCollapsedIndices((prev) => {

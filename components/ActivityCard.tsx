@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent } from "react";
 import type { ActivityBlock } from "@/lib/schema";
 import { toDisplayTime } from "@/lib/time";
-import { fetchPhotoUrl, googleMapsDirectionsUrl, googleMapsQueryFromUrl } from "@/lib/photo";
+import { fetchPhotoUrl, googleMapsDirectionsUrl, googleMapsQueryFromUrl, resolveMapShortLink } from "@/lib/photo";
 import Icon from "./Icon";
 import PhotoEditSheet from "./PhotoEditSheet";
 import TimePickerSheet from "./TimePickerSheet";
@@ -44,6 +44,7 @@ export default function ActivityCard({
   homeAddress = "",
   onHomeAddressChange,
   onMapUrlsChange,
+  previousActivityTitle,
 }: {
   block: ActivityBlock;
   editable?: boolean;
@@ -82,11 +83,17 @@ export default function ActivityCard({
   showHomeAddress?: boolean;
   homeAddress?: string;
   onHomeAddressChange?: (address: string) => void;
-  // Edit-mode-only: manually pasted Google Maps URLs for this activity
-  // (起始點 = previous activity's location, 目的地 = this one). The parent uses
-  // them to re-estimate both the transit arriving here and the transit
-  // leaving here, instead of the usual text-based mapQuery.
+  // Edit-mode-only: manually entered location for this activity's arriving
+  // leg — either a plain text place name or a Google Maps URL (more precise;
+  // short goo.gl links get resolved to it automatically). 起始點 = previous
+  // activity's location, 目的地 = this one. The parent uses them to re-estimate
+  // both the transit arriving here and the transit leaving here, instead of
+  // the usual text-based mapQuery. Left blank, each field's own name (shown
+  // as its placeholder) is what's already used as the fallback.
   onMapUrlsChange?: (originUrl: string, destinationUrl: string) => void;
+  // The previous activity's title, shown as the 起始點 field's default-value
+  // placeholder so it's clear what's used when the field is left blank.
+  previousActivityTitle?: string;
 }) {
   const [internalExpanded, setInternalExpanded] = useState(true);
   const expanded = controlledExpanded ?? internalExpanded;
@@ -157,10 +164,17 @@ export default function ActivityCard({
     if (descriptionDraft !== block.description) onDescriptionChange?.(descriptionDraft);
   }
 
-  function commitMapUrls() {
-    if (originUrlDraft !== (block.originMapUrl ?? "") || destinationUrlDraft !== (block.destinationMapUrl ?? "")) {
-      onMapUrlsChange?.(originUrlDraft, destinationUrlDraft);
+  async function commitMapUrls() {
+    if (originUrlDraft === (block.originMapUrl ?? "") && destinationUrlDraft === (block.destinationMapUrl ?? "")) {
+      return;
     }
+    const [resolvedOrigin, resolvedDestination] = await Promise.all([
+      resolveMapShortLink(originUrlDraft),
+      resolveMapShortLink(destinationUrlDraft),
+    ]);
+    setOriginUrlDraft(resolvedOrigin);
+    setDestinationUrlDraft(resolvedDestination);
+    onMapUrlsChange?.(resolvedOrigin, resolvedDestination);
   }
 
   function renderTimeIcon() {
@@ -419,7 +433,7 @@ export default function ActivityCard({
                   value={originUrlDraft}
                   onChange={(e) => setOriginUrlDraft(e.target.value)}
                   onBlur={commitMapUrls}
-                  placeholder="起始點 Google 地圖網址"
+                  placeholder={previousActivityTitle ? `起始點（預設：${previousActivityTitle}）` : "起始點地名或地圖網址"}
                   className="min-w-0 flex-1 rounded border border-teal-300 bg-white px-1.5 py-0.5 text-xs text-neutral-700 outline-none dark:border-teal-700 dark:bg-neutral-900 dark:text-neutral-200"
                 />
               </div>
@@ -431,7 +445,7 @@ export default function ActivityCard({
                   value={destinationUrlDraft}
                   onChange={(e) => setDestinationUrlDraft(e.target.value)}
                   onBlur={commitMapUrls}
-                  placeholder="目的地 Google 地圖網址"
+                  placeholder={`目的地（預設：${block.title}）`}
                   className="min-w-0 flex-1 rounded border border-teal-300 bg-white px-1.5 py-0.5 text-xs text-neutral-700 outline-none dark:border-teal-700 dark:bg-neutral-900 dark:text-neutral-200"
                 />
               </div>
