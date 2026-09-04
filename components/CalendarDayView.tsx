@@ -265,7 +265,10 @@ export default function CalendarDayView({
   function confirmCreate() {
     const trimmed = creatingTitle.trim();
     if (trimmed && creatingAt !== null) {
-      onDayChange(insertActivityAt(day, minutesToHHMM(creatingAt), trimmed, new Set(), NEW_ACTIVITY_DURATION_MIN));
+      const time = minutesToHHMM(creatingAt);
+      const inserted = insertActivityAt(day, time, trimmed, new Set(), NEW_ACTIVITY_DURATION_MIN);
+      onDayChange(inserted);
+      reestimateFollowingTransit(inserted, time, trimmed);
     }
     setCreatingAt(null);
     setCreatingTitle("");
@@ -309,12 +312,61 @@ export default function CalendarDayView({
     }
   }
 
+  function locationQuery(block: ActivityBlock): string {
+    return block.destinationMapUrl?.trim() || block.mapQuery || block.title;
+  }
+
+  // After inserting a new activity, the transit block that now follows it (if
+  // any) still has the *old* from/duration — it used to lead away from
+  // whatever activity originally sat there. Re-point it at the new activity
+  // and re-estimate its time: manually-set Google Maps URLs win when present,
+  // otherwise this just recognizes the location from the activity titles.
+  // `insertedDay` is the just-computed result of insertActivityAt, passed in
+  // directly rather than read from dayRef — the ref only updates via a
+  // useEffect after the next render, so reading it synchronously right after
+  // onDayChange would still see the pre-insert day.
+  async function reestimateFollowingTransit(insertedDay: Day, time: string, title: string) {
+    const idx = insertedDay.blocks.findIndex((b) => b.type === "activity" && b.start === time && b.title === title);
+    const inserted = idx !== -1 ? (insertedDay.blocks[idx] as ActivityBlock) : null;
+    const transit = idx !== -1 ? insertedDay.blocks[idx + 1] : undefined;
+    const nextActivity = idx !== -1 ? insertedDay.blocks[idx + 2] : undefined;
+    if (!inserted || transit?.type !== "transit" || nextActivity?.type !== "activity") return;
+
+    const estimated = await estimateTravelTimeAI(
+      locationQuery(inserted),
+      locationQuery(nextActivity),
+      transit.mode
+    );
+    if (estimated == null) return;
+    const minutes = roundUpToQuarterHour(estimated);
+
+    const latest = dayRef.current;
+    const latestIdx = latest.blocks.findIndex((b) => b.type === "activity" && b.start === time && b.title === title);
+    if (latestIdx === -1 || latest.blocks[latestIdx + 1]?.type !== "transit") return;
+    const transitIndex = latestIdx + 1;
+    const blocks = [...latest.blocks];
+    blocks[transitIndex] = {
+      ...(blocks[transitIndex] as TransitBlock),
+      from: inserted.title,
+      to: nextActivity.title,
+      minutes: estimated,
+    };
+    let updated = { ...latest, blocks };
+    const { startMin, endMin } = blockTimeRange(blocks[transitIndex]);
+    if (endMin - startMin !== minutes) {
+      updated = resizeBlockEdge(updated, transitIndex, "end", startMin + minutes, lockedTimes);
+    }
+    onDayChange(updated);
+  }
+
   function handleAddActivity(time: string, title: string) {
     if (isTimeOccupied(toMinutes(time))) return;
-    onDayChange(insertActivityAt(day, time, title, lockedTimes, NEW_ACTIVITY_DURATION_MIN));
+    const inserted = insertActivityAt(day, time, title, lockedTimes, NEW_ACTIVITY_DURATION_MIN);
+    onDayChange(inserted);
     setAddSheetOpen(false);
     setFillingKey(`${time}|${title}`);
     fillActivityInBackground(time, title);
+    reestimateFollowingTransit(inserted, time, title);
   }
 
   async function handleModeChange(blockIndex: number, block: TransitBlock, mode: TransitBlock["mode"]) {

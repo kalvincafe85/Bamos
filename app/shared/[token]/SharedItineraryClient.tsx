@@ -1,17 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import type { Itinerary } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/client";
 import ItineraryView from "@/components/ItineraryView";
 import Icon from "@/components/Icon";
 
+// "複製到我的行程" is temporarily disabled — shared itineraries are view-only
+// for now. The fork endpoint (/api/share/fork) is untouched; re-add a button
+// that POSTs to it (see git history for the previous version) to turn this
+// back on.
 export default function SharedItineraryClient({ token }: { token: string }) {
-  const router = useRouter();
   const [itinerary, setItinerary] = useState<Itinerary | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "notFound">("loading");
-  const [forking, setForking] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -24,30 +25,6 @@ export default function SharedItineraryClient({ token }: { token: string }) {
       setStatus("ready");
     });
   }, [token]);
-
-  async function handleCopy() {
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: { redirectTo: `${window.location.origin}/auth/callback?next=/shared/${token}` },
-      });
-      return;
-    }
-
-    setForking(true);
-    const res = await fetch("/api/share/fork", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token }),
-    });
-    setForking(false);
-    if (res.ok) router.push("/upcoming");
-  }
 
   if (status === "loading") {
     return (
@@ -67,21 +44,8 @@ export default function SharedItineraryClient({ token }: { token: string }) {
   }
 
   return (
-    <div className="pb-24">
+    <div>
       <ItineraryView itinerary={itinerary} />
-      <div className="fixed inset-x-0 bottom-20 z-40 px-4">
-        <button
-          onClick={handleCopy}
-          disabled={forking}
-          className="mx-auto flex w-full max-w-2xl items-center justify-center gap-2 rounded-2xl bg-teal-600 py-3.5 text-center font-semibold text-white shadow-lg disabled:opacity-60"
-        >
-          <Icon
-            name={forking ? "progress_activity" : "content_copy"}
-            className={forking ? "animate-spin text-lg" : "text-lg"}
-          />
-          複製到我的行程
-        </button>
-      </div>
     </div>
   );
 }

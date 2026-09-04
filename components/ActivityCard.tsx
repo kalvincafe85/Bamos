@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent } from "react";
 import type { ActivityBlock } from "@/lib/schema";
 import { toDisplayTime } from "@/lib/time";
-import { fetchPhotoUrl, googleMapsDirectionsUrl } from "@/lib/photo";
+import { fetchPhotoUrl, googleMapsDirectionsUrl, googleMapsQueryFromUrl } from "@/lib/photo";
 import Icon from "./Icon";
 import PhotoEditSheet from "./PhotoEditSheet";
 import TimePickerSheet from "./TimePickerSheet";
@@ -196,7 +196,7 @@ export default function ActivityCard({
   const photoUrl = block.photoOverride ?? fetchedUrl;
 
   return (
-    <div className="[contain:layout_paint] rounded-2xl border border-neutral-100 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+    <div className="rounded-2xl border border-neutral-100 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
       <button
         onClick={() => {
           if (editingText) return;
@@ -388,7 +388,12 @@ export default function ActivityCard({
 
           <div className="mt-3 grid grid-cols-1 gap-1.5 text-xs text-neutral-600 dark:text-neutral-400 sm:grid-cols-2">
             <a
-              href={googleMapsDirectionsUrl(block.mapQuery)}
+              href={googleMapsDirectionsUrl(
+                block.destinationMapUrl?.trim()
+                  ? googleMapsQueryFromUrl(block.destinationMapUrl.trim())
+                  : block.mapQuery,
+                block.originMapUrl?.trim() ? googleMapsQueryFromUrl(block.originMapUrl.trim()) : undefined
+              )}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 text-sm text-teal-700 hover:underline dark:text-teal-400"
