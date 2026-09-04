@@ -190,9 +190,11 @@ function blockStartTime(block: Block): string {
   return block.type === "activity" ? block.start : block.departure;
 }
 
-// Inserts a new minimal activity block starting exactly at `time`, pushing
-// every later, unlocked block forward by the new activity's duration so
-// nothing overlaps (stopping the push at the next locked point, same as
+// Inserts a new minimal activity block starting exactly at `time`. The new
+// activity always wins that slot outright: any block still running at `time`
+// (its end falls after the new activity's start — not just ones that start
+// later) gets pushed to begin right after it, cascading forward as far as
+// the chain of overlaps requires (stopping at a locked/pinned block, same as
 // editTimelinePoint's forward cascade).
 export function insertActivityAt(
   day: Day,
@@ -202,11 +204,12 @@ export function insertActivityAt(
   durationMin: number = NEW_ACTIVITY_DURATION_MIN
 ): Day {
   const startMin = toMinutes(time);
+  const endMin = startMin + durationMin;
 
   const newBlock: ActivityBlock = {
     type: "activity",
     start: time,
-    end: toHHMM(startMin + durationMin),
+    end: toHHMM(endMin),
     title,
     durationMin,
     mapQuery: title,
@@ -215,33 +218,13 @@ export function insertActivityAt(
     category: "other",
   };
 
-  const insertIndex = day.blocks.findIndex((b) => toMinutes(blockStartTime(b)) >= startMin);
+  let insertIndex = day.blocks.findIndex((b) => blockTimeRange(b).endMin > startMin);
+  if (insertIndex === -1) insertIndex = day.blocks.length;
 
-  let shifting = true;
-  const shiftedBlocks = day.blocks.map((block): Block => {
-    if (toMinutes(blockStartTime(block)) < startMin || !shifting) return block;
-    if (lockedTimes.has(blockStartTime(block))) {
-      shifting = false;
-      return block;
-    }
-    return block.type === "activity"
-      ? {
-          ...block,
-          start: toHHMM(toMinutes(block.start) + durationMin),
-          end: toHHMM(toMinutes(block.end) + durationMin),
-        }
-      : {
-          ...block,
-          departure: toHHMM(toMinutes(block.departure) + durationMin),
-          arrival: toHHMM(toMinutes(block.arrival) + durationMin),
-        };
-  });
+  const blocks = [...day.blocks];
+  blocks.splice(insertIndex, 0, newBlock);
 
-  const blocks = [...shiftedBlocks];
-  if (insertIndex === -1) blocks.push(newBlock);
-  else blocks.splice(insertIndex, 0, newBlock);
-
-  return { ...day, blocks };
+  return { ...day, blocks: pushForwardFrom(blocks, insertIndex + 1, endMin, lockedTimes) };
 }
 
 // --- Calendar-style drag support (free-form move/resize with push-to-avoid-overlap) ---

@@ -8,7 +8,7 @@ import {
   type Day,
   type BackupPlan,
 } from "./schema";
-import { snapToHalfHour, arrivalWithBuffer, toMinutes } from "./time";
+import { snapToQuarterHour, arrivalWithBuffer, toMinutes } from "./time";
 
 export type ItineraryDraft = {
   title: string;
@@ -23,9 +23,9 @@ const SYSTEM_PROMPT = `你是專業的旅遊行程規劃師。使用者會給你
 規則：
 - 判斷使用者的旅遊天數，依日期分組成 days 陣列。
 - 每天的 blocks 依時間先後排列，包含 "activity"（景點/餐廳/住宿/其他）與 "transit"（交通）兩種區塊交錯出現。
-- activity 的 start/end 用 "HH:MM" 24小時制表示，之後系統會自動吸附到最近的 30 分鐘整點，你只要給合理估計值即可。
+- activity 的 start/end 用 "HH:MM" 24小時制表示，之後系統會自動吸附到最近的 15 分鐘整點，你只要給合理估計值即可。
 - 若使用者沒說明某景點要停留多久，且你也無法從常識判斷，預設抓 90 分鐘 (1.5 小時)。
-- transit 的 minutes 是估計車程/步行分鐘數（不需要是 30 的倍數），departure 用上一個 activity 的 end，arrival 系統會自動計算（無條件進位到下個 30 分整點留緩衝），你只要給 departure 大致的值。
+- transit 的 minutes 是估計車程/步行分鐘數（不需要是 15 的倍數），departure 用上一個 activity 的 end，arrival 系統會自動計算（無條件進位到下個 15 分整點留緩衝），你只要給 departure 大致的值。
 - 每個 activity 要有：mapQuery（可直接拿去 Google 地圖搜尋的地點名稱，盡量包含縣市）、photoQuery（拿去搜圖用的簡短關鍵字，例如景點英文或中文名稱）、hours（營業時間，若不確定可省略此欄位）、parking（停車資訊，若不確定可省略此欄位）、description（50字以內的特色介紹，用溫暖、吸引人的文字）、category（attraction/meal/lodging/other 其中之一）。
 - 幫整趟行程想一個吸引人的標題（title），並判斷主要目的地城市/地區（destination，例如"南投"、"台北"，用來查天氣）。若使用者已指定目的地/地區，請直接採用該值作為 destination，不需要自行從內容判斷。
 - 若使用者已指定行程開始日期，行程第一天的 date 請從該日期開始（後續天數依你判斷的旅遊天數決定）；若沒有指定，才依「今天日期」與內容裡的相對時間描述（例如"明天"、"下週六"）自行判斷。
@@ -280,8 +280,8 @@ function applyTimeRules(draft: AIItineraryDraft): ItineraryDraft {
     let prevArrivalOverride: string | null = null;
     const blocks: Block[] = day.blocks.map((block): Block => {
       if (block.type === "activity") {
-        const start = prevArrivalOverride ?? snapToHalfHour(block.start);
-        const end = snapToHalfHour(block.end);
+        const start = prevArrivalOverride ?? snapToQuarterHour(block.start);
+        const end = snapToQuarterHour(block.end);
         prevArrivalOverride = null;
         const durationMin = block.durationMin ?? Math.max(30, toMinutes(end) - toMinutes(start));
         return { ...block, start, end, durationMin } satisfies ActivityBlock;

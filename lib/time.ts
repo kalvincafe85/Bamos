@@ -12,19 +12,26 @@ export function toHHMM(totalMinutes: number): string {
   ).padStart(2, "0")}`;
 }
 
-// Snap a time to the nearest 30-minute mark (used for activity start/end display).
-export function snapToHalfHour(hhmm: string): string {
+// Snap a time to the nearest 15-minute mark (used for activity start/end display).
+export function snapToQuarterHour(hhmm: string): string {
   const mins = toMinutes(hhmm);
-  const snapped = Math.round(mins / 30) * 30;
+  const snapped = Math.round(mins / 15) * 15;
   return toHHMM(snapped);
 }
 
-// Arrival time after travel: departure + minutes, rounded UP to the next 30-minute
-// mark, to leave buffer for parking/traffic. If already exactly on a 30-min mark,
+// Round a duration (minutes) UP to the nearest 15-minute mark — used for transit
+// estimates, whose visual time-slot always lands on the site-wide 15-min grid even
+// though the displayed estimate itself can be any value.
+export function roundUpToQuarterHour(minutes: number): number {
+  return Math.ceil(minutes / 15) * 15;
+}
+
+// Arrival time after travel: departure + minutes, rounded UP to the next 15-minute
+// mark, to leave buffer for parking/traffic. If already exactly on a 15-min mark,
 // it stays there (no extra buffer added).
 export function arrivalWithBuffer(departureHHMM: string, travelMinutes: number): string {
   const raw = toMinutes(departureHHMM) + travelMinutes;
-  const roundedUp = Math.ceil(raw / 30) * 30;
+  const roundedUp = Math.ceil(raw / 15) * 15;
   return toHHMM(roundedUp);
 }
 

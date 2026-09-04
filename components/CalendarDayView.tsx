@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import type { ActivityBlock, Day, TransitBlock } from "@/lib/schema";
 import { blockTimeRange, insertActivityAt, resizeBlockEdge } from "@/lib/timeline";
-import { toMinutes } from "@/lib/time";
+import { toMinutes, toHHMM, roundUpToQuarterHour } from "@/lib/time";
 import { estimateTravelTimeAI } from "@/lib/travelTime";
 import { getHomeAddress, setHomeAddress as saveHomeAddress } from "@/lib/homeAddress";
 import Icon from "./Icon";
@@ -13,7 +13,7 @@ import AddActivitySheet from "./AddActivitySheet";
 const PX_PER_MIN = 2; // 1440min * 2px = 2880px tall — deliberately taller than a
 // typical Google Calendar viewport so the whole day scrolls with the page.
 const DAY_MINUTES = 1440;
-const INSERT_SNAP_MIN = 30; // grid the hover/click "insert here" position snaps to
+const INSERT_SNAP_MIN = 15; // grid the hover/click "insert here" position snaps to
 const NEW_ACTIVITY_DURATION_MIN = 60; // duration of a newly-inserted activity
 const CREATE_SLOT_VISUAL_HEIGHT = 30; // just the hover/input preview box's height, independent of duration
 const BLOCK_GAP = 6; // px kept between stacked cards once their real content is measured
@@ -322,7 +322,8 @@ export default function CalendarDayView({
       setModePopoverIndex(null);
       return;
     }
-    const minutes = (await estimateTravelTimeAI(block.from, block.to, mode)) ?? block.minutes;
+    const estimated = (await estimateTravelTimeAI(block.from, block.to, mode)) ?? block.minutes;
+    const minutes = roundUpToQuarterHour(estimated);
     const blocks = [...day.blocks];
     blocks[blockIndex] = { ...block, mode, minutes };
     let updated = { ...day, blocks };
@@ -332,6 +333,34 @@ export default function CalendarDayView({
     }
     onDayChange(updated);
     setModePopoverIndex(null);
+  }
+
+  // Manually pasted origin/destination Google Maps URLs (edit mode only) give
+  // the AI a more precise pair of locations than the usual text-based
+  // mapQuery — when both are present and this activity is directly preceded
+  // by a transit leg, re-estimate that leg's travel time from them.
+  async function handleMapUrlsChange(index: number, originUrl: string, destinationUrl: string) {
+    const block = day.blocks[index] as ActivityBlock;
+    const blocks = [...day.blocks];
+    blocks[index] = { ...block, originMapUrl: originUrl, destinationMapUrl: destinationUrl };
+
+    const prevBlock = day.blocks[index - 1];
+    if (originUrl.trim() && destinationUrl.trim() && prevBlock?.type === "transit") {
+      const estimated = await estimateTravelTimeAI(originUrl.trim(), destinationUrl.trim(), prevBlock.mode);
+      if (estimated != null) {
+        const minutes = roundUpToQuarterHour(estimated);
+        const transitIndex = index - 1;
+        blocks[transitIndex] = { ...(blocks[transitIndex] as TransitBlock), minutes: estimated };
+        let updated = { ...day, blocks };
+        const { startMin, endMin } = blockTimeRange(blocks[transitIndex]);
+        if (endMin - startMin !== minutes) {
+          updated = resizeBlockEdge(updated, transitIndex, "end", startMin + minutes, lockedTimes);
+        }
+        onDayChange(updated);
+        return;
+      }
+    }
+    onDayChange({ ...day, blocks });
   }
 
   // Left-side hour axis only: map each hour mark to a pixel position by
@@ -549,6 +578,7 @@ export default function CalendarDayView({
                   showHomeAddress={(isFirstDay && i === firstActivityIndex) || (isLastDay && i === lastActivityIndex)}
                   homeAddress={homeAddress}
                   onHomeAddressChange={handleHomeAddressChange}
+                  onMapUrlsChange={(originUrl, destinationUrl) => handleMapUrlsChange(i, originUrl, destinationUrl)}
                   expanded={!collapsedIndices.has(i)}
                   onExpandedChange={(exp) =>
                     setCollapsedIndices((prev) => {

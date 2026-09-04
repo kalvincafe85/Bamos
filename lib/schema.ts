@@ -19,6 +19,12 @@ export const ActivityBlockSchema = z.object({
   // Vertical crop anchor (0-100, CSS object-position Y%) for whichever photo is
   // shown — auto-searched or overridden. Defaults to 50 (centered) when unset.
   photoOffsetY: z.number().optional(),
+  // User-supplied Google Maps URLs (edit mode only) for the leg arriving at this
+  // activity — origin is where the previous activity is, destination is this
+  // activity itself. When both are set, they're used to re-estimate the
+  // preceding transit block's travel time more precisely than mapQuery text.
+  originMapUrl: z.string().optional(),
+  destinationMapUrl: z.string().optional(),
 });
 
 export const TransitBlockSchema = z.object({

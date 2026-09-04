@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import type { ActivityBlock, Itinerary, Day, TransitBlock } from "@/lib/schema";
 import { blockTimeRange, moveBlockBy, resizeBlockEdge } from "@/lib/timeline";
-import { toDisplayTime, toHHMM } from "@/lib/time";
+import { toDisplayTime, toHHMM, roundUpToQuarterHour } from "@/lib/time";
 import { estimateTravelTimeAI } from "@/lib/travelTime";
 import Icon from "./Icon";
 
@@ -46,12 +46,6 @@ function isToday(iso: string): boolean {
 
 function snap(min: number): number {
   return Math.round(min / SNAP_MIN) * SNAP_MIN;
-}
-
-// AI-estimated travel times round up to the nearest 30 minutes, matching
-// this app's half-hour scheduling grid everywhere else.
-function roundUpTo30(min: number): number {
-  return Math.ceil(min / 30) * 30;
 }
 
 function transitModeInfo(mode: TransitBlock["mode"]) {
@@ -173,15 +167,15 @@ export default function WeekCalendarView({
     const key = `${dayIndex}-${blockIndex}`;
     setEstimatingKey(key);
     // The displayed "X 分鐘" is the real estimate, but the block's time-slot
-    // (and therefore its visual height) always rounds up to the nearest 30
-    // minutes, matching this app's half-hour scheduling grid everywhere else.
+    // (and therefore its visual height) always rounds up to the nearest 15
+    // minutes, matching this app's scheduling grid everywhere else.
     const estimated = (await estimateTravelTimeAI(block.from, block.to, mode)) ?? block.minutes;
     const day = itinerary.days[dayIndex];
     const blocks = [...day.blocks];
     const current = blocks[blockIndex] as TransitBlock;
     const { startMin } = blockTimeRange(current);
     const maxEnd = blockIndex + 1 < blocks.length ? blockTimeRange(blocks[blockIndex + 1]).startMin : DAY_MINUTES;
-    const clampedEnd = Math.max(startMin + 1, Math.min(maxEnd, startMin + roundUpTo30(estimated)));
+    const clampedEnd = Math.max(startMin + 1, Math.min(maxEnd, startMin + roundUpToQuarterHour(estimated)));
     blocks[blockIndex] = { ...current, mode, minutes: estimated, arrival: toHHMM(clampedEnd) };
     updateDay(dayIndex, { ...day, blocks });
     setEstimatingKey(null);
@@ -472,16 +466,16 @@ export default function WeekCalendarView({
           <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">已選取 {selected.size} 項</span>
           <div className="flex items-center gap-1.5">
             <button
-              onClick={() => shiftSelected(-30)}
+              onClick={() => shiftSelected(-15)}
               className="rounded-lg bg-neutral-100 px-2 py-1.5 text-xs font-semibold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"
             >
-              往前 30 分
+              往前 15 分
             </button>
             <button
-              onClick={() => shiftSelected(30)}
+              onClick={() => shiftSelected(15)}
               className="rounded-lg bg-neutral-100 px-2 py-1.5 text-xs font-semibold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"
             >
-              往後 30 分
+              往後 15 分
             </button>
             <button
               onClick={deleteSelected}

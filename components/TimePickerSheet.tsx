@@ -4,10 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { toPeriodDisplayTime } from "@/lib/time";
 import Icon from "./Icon";
 
-const SLOTS = Array.from({ length: 48 }, (_, i) => {
-  const h = Math.floor(i / 2);
-  const m = i % 2 === 0 ? "00" : "30";
-  return `${String(h).padStart(2, "0")}:${m}`;
+const SLOTS = Array.from({ length: 96 }, (_, i) => {
+  const h = Math.floor(i / 4);
+  const m = (i % 4) * 15;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 });
 
 export default function TimePickerSheet({

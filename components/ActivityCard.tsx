@@ -6,6 +6,7 @@ import { toDisplayTime } from "@/lib/time";
 import { fetchPhotoUrl, googleMapsDirectionsUrl } from "@/lib/photo";
 import Icon from "./Icon";
 import PhotoEditSheet from "./PhotoEditSheet";
+import TimePickerSheet from "./TimePickerSheet";
 
 const CATEGORY_LABEL: Record<ActivityBlock["category"], string> = {
   attraction: "景點",
@@ -42,6 +43,7 @@ export default function ActivityCard({
   showHomeAddress = false,
   homeAddress = "",
   onHomeAddressChange,
+  onMapUrlsChange,
 }: {
   block: ActivityBlock;
   editable?: boolean;
@@ -80,6 +82,11 @@ export default function ActivityCard({
   showHomeAddress?: boolean;
   homeAddress?: string;
   onHomeAddressChange?: (address: string) => void;
+  // Edit-mode-only: manually pasted Google Maps URLs for the leg arriving at
+  // this activity (起始點 = previous activity's location, 目的地 = this one).
+  // When both are non-empty, the parent re-estimates the preceding transit
+  // block's travel time from them instead of the usual text-based mapQuery.
+  onMapUrlsChange?: (originUrl: string, destinationUrl: string) => void;
 }) {
   const [internalExpanded, setInternalExpanded] = useState(true);
   const expanded = controlledExpanded ?? internalExpanded;
@@ -91,8 +98,11 @@ export default function ActivityCard({
   const [photoLoaded, setPhotoLoaded] = useState(false);
   const [editingPhoto, setEditingPhoto] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [editingTimeField, setEditingTimeField] = useState<"start" | "end" | null>(null);
   const [titleDraft, setTitleDraft] = useState(block.title);
   const [descriptionDraft, setDescriptionDraft] = useState(block.description);
+  const [originUrlDraft, setOriginUrlDraft] = useState(block.originMapUrl ?? "");
+  const [destinationUrlDraft, setDestinationUrlDraft] = useState(block.destinationMapUrl ?? "");
   const bodyContentRef = useRef<HTMLDivElement>(null);
   const [bodyHeight, setBodyHeight] = useState(0);
 
@@ -123,6 +133,14 @@ export default function ActivityCard({
     setDescriptionDraft(block.description);
   }, [block.description]);
 
+  useEffect(() => {
+    setOriginUrlDraft(block.originMapUrl ?? "");
+  }, [block.originMapUrl]);
+
+  useEffect(() => {
+    setDestinationUrlDraft(block.destinationMapUrl ?? "");
+  }, [block.destinationMapUrl]);
+
   // Edit mode always needs the full card visible (time, description, etc.)
   useEffect(() => {
     if (editingText) setExpanded(true);
@@ -137,6 +155,12 @@ export default function ActivityCard({
 
   function commitDescription() {
     if (descriptionDraft !== block.description) onDescriptionChange?.(descriptionDraft);
+  }
+
+  function commitMapUrls() {
+    if (originUrlDraft !== (block.originMapUrl ?? "") || destinationUrlDraft !== (block.destinationMapUrl ?? "")) {
+      onMapUrlsChange?.(originUrlDraft, destinationUrlDraft);
+    }
   }
 
   function renderTimeIcon() {
@@ -172,7 +196,7 @@ export default function ActivityCard({
   const photoUrl = block.photoOverride ?? fetchedUrl;
 
   return (
-    <div className="rounded-2xl border border-neutral-100 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+    <div className="[contain:layout_paint] rounded-2xl border border-neutral-100 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
       <button
         onClick={() => {
           if (editingText) return;
@@ -198,23 +222,25 @@ export default function ActivityCard({
         </div>
         <div className="min-w-0 flex-1">
           {expanded ? (
-            <div className="flex min-w-0 items-center gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:flex-nowrap">
               {renderTimeIcon()}
               {editingText ? (
                 <span onClick={(e) => e.stopPropagation()} className="flex shrink-0 items-center gap-1">
-                  <input
-                    type="time"
-                    value={block.start}
-                    onChange={(e) => onTimeChange?.("start", e.target.value)}
-                    className="rounded border border-teal-300 bg-white px-1 py-0.5 text-base font-bold text-neutral-900 outline-none dark:border-teal-700 dark:bg-neutral-900 dark:text-neutral-100"
-                  />
+                  <button
+                    type="button"
+                    onClick={() => setEditingTimeField("start")}
+                    className="rounded border border-teal-300 bg-white px-1.5 py-0.5 text-base font-bold text-neutral-900 dark:border-teal-700 dark:bg-neutral-900 dark:text-neutral-100"
+                  >
+                    {toDisplayTime(block.start)}
+                  </button>
                   <span className="text-neutral-400">–</span>
-                  <input
-                    type="time"
-                    value={block.end}
-                    onChange={(e) => onTimeChange?.("end", e.target.value)}
-                    className="rounded border border-teal-300 bg-white px-1 py-0.5 text-base font-bold text-neutral-900 outline-none dark:border-teal-700 dark:bg-neutral-900 dark:text-neutral-100"
-                  />
+                  <button
+                    type="button"
+                    onClick={() => setEditingTimeField("end")}
+                    className="rounded border border-teal-300 bg-white px-1.5 py-0.5 text-base font-bold text-neutral-900 dark:border-teal-700 dark:bg-neutral-900 dark:text-neutral-100"
+                  >
+                    {toDisplayTime(block.end)}
+                  </button>
                 </span>
               ) : editable ? (
                 <span
@@ -234,6 +260,10 @@ export default function ActivityCard({
                 </span>
               )}
 
+              <span className={`order-3 shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold sm:order-last ${CATEGORY_PILL_CLASS[block.category]}`}>
+                {CATEGORY_LABEL[block.category]}
+              </span>
+
               {editingText ? (
                 <input
                   value={titleDraft}
@@ -243,20 +273,16 @@ export default function ActivityCard({
                   onKeyDown={(e) => {
                     if (e.key === "Enter") e.currentTarget.blur();
                   }}
-                  className="min-w-0 flex-1 rounded-lg border border-teal-300 bg-white px-2 py-1 text-base font-bold text-neutral-900 outline-none dark:border-teal-700 dark:bg-neutral-900 dark:text-neutral-100"
+                  className="order-4 min-w-0 basis-full rounded-lg border border-teal-300 bg-white px-2 py-1 text-base font-bold text-neutral-900 outline-none dark:border-teal-700 dark:bg-neutral-900 dark:text-neutral-100 sm:order-none sm:basis-0 sm:flex-1"
                 />
               ) : (
-                <h3 className="min-w-0 flex-1 truncate text-base font-bold leading-tight text-neutral-900 dark:text-neutral-100">
+                <h3 className="order-4 min-w-0 basis-full truncate text-base font-bold leading-tight text-neutral-900 dark:text-neutral-100 sm:order-none sm:basis-0 sm:flex-1">
                   {block.title}
                 </h3>
               )}
-
-              <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${CATEGORY_PILL_CLASS[block.category]}`}>
-                {CATEGORY_LABEL[block.category]}
-              </span>
             </div>
           ) : (
-            <div className="flex min-w-0 items-center gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:flex-nowrap">
               {renderTimeIcon()}
               <span className="shrink-0 text-base font-bold text-neutral-700 dark:text-neutral-200">
                 {toDisplayTime(block.start)}
@@ -270,10 +296,12 @@ export default function ActivityCard({
                   onKeyDown={(e) => {
                     if (e.key === "Enter") e.currentTarget.blur();
                   }}
-                  className="w-full min-w-0 rounded-lg border border-teal-300 bg-white px-2 py-1 text-base font-bold text-neutral-900 outline-none dark:border-teal-700 dark:bg-neutral-900 dark:text-neutral-100"
+                  className="min-w-0 basis-full rounded-lg border border-teal-300 bg-white px-2 py-1 text-base font-bold text-neutral-900 outline-none dark:border-teal-700 dark:bg-neutral-900 dark:text-neutral-100 sm:basis-0 sm:flex-1"
                 />
               ) : (
-                <h3 className="truncate text-base font-bold text-neutral-900 dark:text-neutral-100">{block.title}</h3>
+                <h3 className="min-w-0 basis-full truncate text-base font-bold text-neutral-900 dark:text-neutral-100 sm:basis-0 sm:flex-1">
+                  {block.title}
+                </h3>
               )}
             </div>
           )}
@@ -327,14 +355,14 @@ export default function ActivityCard({
       </button>
 
       <div
-        className={`overflow-hidden transition-[height] duration-300 ${expanded ? "ease-out" : "ease-linear"}`}
+        className={`[contain:layout_paint] will-change-[height] overflow-hidden transition-[height] duration-300 ${expanded ? "ease-out" : "ease-linear"}`}
         style={{ height: expanded ? bodyHeight : 0 }}
       >
         <div ref={bodyContentRef} className="px-4 pb-4">
           <button
             onClick={(e) => {
               e.stopPropagation();
-              if (editable) setEditingPhoto(true);
+              if (editingText) setEditingPhoto(true);
             }}
             className="relative mt-3 h-36 w-full overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-800"
           >
@@ -351,7 +379,7 @@ export default function ActivityCard({
                 <Icon name={photoLoaded ? "image" : "hourglass_top"} className="text-4xl" />
               </div>
             )}
-            {editable && (
+            {editingText && (
               <span className="absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center rounded-lg bg-black/50 text-white">
                 <Icon name="photo" className="text-lg" />
               </span>
@@ -375,6 +403,30 @@ export default function ActivityCard({
                   value={homeAddress}
                   onChange={(e) => onHomeAddressChange?.(e.target.value)}
                   placeholder="輸入住家地址"
+                  className="min-w-0 flex-1 rounded border border-teal-300 bg-white px-1.5 py-0.5 text-xs text-neutral-700 outline-none dark:border-teal-700 dark:bg-neutral-900 dark:text-neutral-200"
+                />
+              </div>
+            )}
+            {editingText && (
+              <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                <Icon name="my_location" className="shrink-0 text-base text-neutral-400 dark:text-neutral-500" />
+                <input
+                  value={originUrlDraft}
+                  onChange={(e) => setOriginUrlDraft(e.target.value)}
+                  onBlur={commitMapUrls}
+                  placeholder="起始點 Google 地圖網址"
+                  className="min-w-0 flex-1 rounded border border-teal-300 bg-white px-1.5 py-0.5 text-xs text-neutral-700 outline-none dark:border-teal-700 dark:bg-neutral-900 dark:text-neutral-200"
+                />
+              </div>
+            )}
+            {editingText && (
+              <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                <Icon name="flag" className="shrink-0 text-base text-neutral-400 dark:text-neutral-500" />
+                <input
+                  value={destinationUrlDraft}
+                  onChange={(e) => setDestinationUrlDraft(e.target.value)}
+                  onBlur={commitMapUrls}
+                  placeholder="目的地 Google 地圖網址"
                   className="min-w-0 flex-1 rounded border border-teal-300 bg-white px-1.5 py-0.5 text-xs text-neutral-700 outline-none dark:border-teal-700 dark:bg-neutral-900 dark:text-neutral-200"
                 />
               </div>
@@ -420,6 +472,18 @@ export default function ActivityCard({
           )}
         </div>
       </div>
+
+      {editingTimeField && (
+        <TimePickerSheet
+          initialTime={editingTimeField === "start" ? block.start : block.end}
+          validate={() => null}
+          onConfirm={(time) => {
+            onTimeChange?.(editingTimeField, time);
+            setEditingTimeField(null);
+          }}
+          onCancel={() => setEditingTimeField(null)}
+        />
+      )}
 
       {editingPhoto && (
         <PhotoEditSheet
