@@ -20,7 +20,7 @@ export default function LoginScreen() {
   return (
     <div className="flex h-[80vh] flex-col items-center justify-center gap-4 px-6 text-center">
       <Icon name="flight_takeoff" className="text-5xl text-teal-600" />
-      <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Bamos</h1>
+      <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Bamos!</h1>
       <p className="text-sm text-neutral-500 dark:text-neutral-400">
         AI 行程規劃 — 輸入片段文字，自動生成完整旅遊行程
       </p>
