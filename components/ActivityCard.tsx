@@ -82,10 +82,10 @@ export default function ActivityCard({
   showHomeAddress?: boolean;
   homeAddress?: string;
   onHomeAddressChange?: (address: string) => void;
-  // Edit-mode-only: manually pasted Google Maps URLs for the leg arriving at
-  // this activity (起始點 = previous activity's location, 目的地 = this one).
-  // When both are non-empty, the parent re-estimates the preceding transit
-  // block's travel time from them instead of the usual text-based mapQuery.
+  // Edit-mode-only: manually pasted Google Maps URLs for this activity
+  // (起始點 = previous activity's location, 目的地 = this one). The parent uses
+  // them to re-estimate both the transit arriving here and the transit
+  // leaving here, instead of the usual text-based mapQuery.
   onMapUrlsChange?: (originUrl: string, destinationUrl: string) => void;
 }) {
   const [internalExpanded, setInternalExpanded] = useState(true);

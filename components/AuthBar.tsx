@@ -44,7 +44,7 @@ export default function AuthBar() {
   const avatarUrl = user.user_metadata?.avatar_url as string | undefined;
 
   return (
-    <div ref={menuRef} className="fixed right-3 top-3 z-50">
+    <div ref={menuRef} className="fixed right-3 top-1 z-50">
       <button
         onClick={() => setMenuOpen((v) => !v)}
         aria-label="帳號選單"

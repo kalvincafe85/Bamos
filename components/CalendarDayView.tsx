@@ -337,29 +337,44 @@ export default function CalendarDayView({
 
   // Manually pasted origin/destination Google Maps URLs (edit mode only) give
   // the AI a more precise pair of locations than the usual text-based
-  // mapQuery — when both are present and this activity is directly preceded
-  // by a transit leg, re-estimate that leg's travel time from them.
+  // mapQuery. When present, they re-estimate both transit legs touching this
+  // activity: the one arriving here (using this activity's own origin/
+  // destination) and the one leaving here (using this activity's destination
+  // paired with the next activity's own destinationMapUrl, if it has one set).
   async function handleMapUrlsChange(index: number, originUrl: string, destinationUrl: string) {
     const block = day.blocks[index] as ActivityBlock;
     const blocks = [...day.blocks];
     blocks[index] = { ...block, originMapUrl: originUrl, destinationMapUrl: destinationUrl };
 
-    const prevBlock = day.blocks[index - 1];
-    if (originUrl.trim() && destinationUrl.trim() && prevBlock?.type === "transit") {
-      const estimated = await estimateTravelTimeAI(originUrl.trim(), destinationUrl.trim(), prevBlock.mode);
-      if (estimated != null) {
-        const minutes = roundUpToQuarterHour(estimated);
-        const transitIndex = index - 1;
-        blocks[transitIndex] = { ...(blocks[transitIndex] as TransitBlock), minutes: estimated };
-        let updated = { ...day, blocks };
-        const { startMin, endMin } = blockTimeRange(blocks[transitIndex]);
-        if (endMin - startMin !== minutes) {
-          updated = resizeBlockEdge(updated, transitIndex, "end", startMin + minutes, lockedTimes);
-        }
-        onDayChange(updated);
-        return;
+    async function reestimateLeg(transitIndex: number, from: string, to: string) {
+      const transit = blocks[transitIndex] as TransitBlock;
+      const estimated = await estimateTravelTimeAI(from, to, transit.mode);
+      if (estimated == null) return;
+      const minutes = roundUpToQuarterHour(estimated);
+      blocks[transitIndex] = { ...transit, minutes: estimated };
+      const { startMin, endMin } = blockTimeRange(blocks[transitIndex]);
+      if (endMin - startMin !== minutes) {
+        const updated = resizeBlockEdge({ ...day, blocks }, transitIndex, "end", startMin + minutes, lockedTimes);
+        blocks.splice(0, blocks.length, ...updated.blocks);
       }
     }
+
+    const prevBlock = day.blocks[index - 1];
+    if (originUrl.trim() && destinationUrl.trim() && prevBlock?.type === "transit") {
+      await reestimateLeg(index - 1, originUrl.trim(), destinationUrl.trim());
+    }
+
+    const nextTransit = day.blocks[index + 1];
+    const nextActivity = day.blocks[index + 2];
+    if (
+      destinationUrl.trim() &&
+      nextTransit?.type === "transit" &&
+      nextActivity?.type === "activity" &&
+      nextActivity.destinationMapUrl?.trim()
+    ) {
+      await reestimateLeg(index + 1, destinationUrl.trim(), nextActivity.destinationMapUrl.trim());
+    }
+
     onDayChange({ ...day, blocks });
   }
 
