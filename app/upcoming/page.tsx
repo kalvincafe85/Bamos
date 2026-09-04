@@ -12,6 +12,8 @@ import Icon from "@/components/Icon";
 const PENDING_TEXT_KEY = "bamos.pendingText";
 const PENDING_ID_KEY = "bamos.pendingId";
 const PENDING_HOME_ADDRESS_KEY = "bamos.pendingHomeAddress";
+const PENDING_DESTINATION_KEY = "bamos.pendingDestination";
+const PENDING_START_DATE_KEY = "bamos.pendingStartDate";
 const ESTIMATED_SECONDS = 50;
 
 export default function UpcomingPage() {
@@ -55,6 +57,8 @@ function UpcomingPageInner() {
     const pendingText = window.sessionStorage.getItem(PENDING_TEXT_KEY);
     const pendingId = window.sessionStorage.getItem(PENDING_ID_KEY);
     const pendingHomeAddress = window.sessionStorage.getItem(PENDING_HOME_ADDRESS_KEY) ?? "";
+    const pendingDestination = window.sessionStorage.getItem(PENDING_DESTINATION_KEY) ?? "";
+    const pendingStartDate = window.sessionStorage.getItem(PENDING_START_DATE_KEY) ?? "";
     if (!pendingText || pendingId !== generatingId) {
       router.replace("/upcoming");
       return;
@@ -71,7 +75,12 @@ function UpcomingPageInner() {
     fetch("/api/generate-itinerary", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: pendingText, homeAddress: pendingHomeAddress }),
+      body: JSON.stringify({
+        text: pendingText,
+        homeAddress: pendingHomeAddress,
+        destination: pendingDestination,
+        startDate: pendingStartDate,
+      }),
       signal: controller.signal,
     })
       .then(async (res) => {
@@ -81,6 +90,8 @@ function UpcomingPageInner() {
         window.sessionStorage.removeItem(PENDING_TEXT_KEY);
         window.sessionStorage.removeItem(PENDING_ID_KEY);
         window.sessionStorage.removeItem(PENDING_HOME_ADDRESS_KEY);
+        window.sessionStorage.removeItem(PENDING_DESTINATION_KEY);
+        window.sessionStorage.removeItem(PENDING_START_DATE_KEY);
         clearInterval(timer);
         setStatus("idle");
         await refresh(data.itinerary.id);

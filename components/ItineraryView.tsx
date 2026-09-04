@@ -12,8 +12,6 @@ import BackupSection from "./BackupSection";
 import DayTimelineSheet from "./DayTimelineSheet";
 import CalendarDayView from "./CalendarDayView";
 import WeekCalendarView from "./WeekCalendarView";
-import ThemeToggle from "./ThemeToggle";
-import SharePopover from "./SharePopover";
 import Icon from "./Icon";
 
 export default function ItineraryView({
@@ -31,7 +29,29 @@ export default function ItineraryView({
   const [weatherByDate, setWeatherByDate] = useState<Record<string, DailyWeather>>({});
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [weekViewOpen, setWeekViewOpen] = useState(false);
-  const [shareOpen, setShareOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 1000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  async function handleShare() {
+    try {
+      const res = await fetch("/api/share/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itineraryId: itinerary.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "分享連結建立失敗");
+      await navigator.clipboard.writeText(data.url as string);
+      setToast("已複製連結");
+    } catch {
+      setToast("分享連結建立失敗");
+    }
+  }
 
   useEffect(() => {
     const dates = itinerary.days.map((d) => d.date);
@@ -105,7 +125,7 @@ export default function ItineraryView({
                   onOpenWeekView={
                     editable && onItineraryChange ? () => setWeekViewOpen(true) : undefined
                   }
-                  onShare={() => setShareOpen(true)}
+                  onShare={handleShare}
                   destination={itinerary.destination}
                   isFirstDay={activeDay === 0}
                   isLastDay={activeDay === itinerary.days.length - 1}
@@ -114,9 +134,8 @@ export default function ItineraryView({
             ) : (
               <>
                 <div className="mb-1 flex justify-end gap-2 px-4 pt-4">
-                  <ThemeToggle />
                   <button
-                    onClick={() => setShareOpen(true)}
+                    onClick={handleShare}
                     aria-label="分享行程"
                     className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"
                   >
@@ -168,7 +187,6 @@ export default function ItineraryView({
           <div className="w-1/2 shrink-0 px-4 pt-4">
             {editable && (
               <div className="mb-2 flex justify-end gap-2">
-                <ThemeToggle />
                 <button
                   onClick={() => setWeekViewOpen(false)}
                   aria-label="返回行程列表"
@@ -177,7 +195,7 @@ export default function ItineraryView({
                   <Icon name="view_agenda" className="text-xl" />
                 </button>
                 <button
-                  onClick={() => setShareOpen(true)}
+                  onClick={handleShare}
                   aria-label="分享行程"
                   className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"
                 >
@@ -211,7 +229,13 @@ export default function ItineraryView({
         </div>
       </div>
 
-      {shareOpen && <SharePopover itineraryId={itinerary.id} onClose={() => setShareOpen(false)} />}
+      {toast && (
+        <div className="fixed inset-x-0 bottom-24 z-50 flex justify-center px-4">
+          <div className="rounded-full bg-neutral-900/90 px-4 py-2 text-sm text-white shadow-lg dark:bg-neutral-100/90 dark:text-neutral-900">
+            {toast}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

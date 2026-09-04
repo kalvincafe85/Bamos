@@ -9,7 +9,6 @@ import { getHomeAddress, setHomeAddress as saveHomeAddress } from "@/lib/homeAdd
 import Icon from "./Icon";
 import ActivityCard from "./ActivityCard";
 import AddActivitySheet from "./AddActivitySheet";
-import ThemeToggle from "./ThemeToggle";
 
 const PX_PER_MIN = 2; // 1440min * 2px = 2880px tall — deliberately taller than a
 // typical Google Calendar viewport so the whole day scrolls with the page.
@@ -385,7 +384,6 @@ export default function CalendarDayView({
     >
       {editable && (
         <div className="mb-2 flex justify-end gap-2">
-          <ThemeToggle />
           {onOpenWeekView && (
             <button
               onClick={onOpenWeekView}

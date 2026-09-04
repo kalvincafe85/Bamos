@@ -7,11 +7,15 @@ import { getHomeAddress, setHomeAddress as saveHomeAddress } from "@/lib/homeAdd
 const PENDING_TEXT_KEY = "bamos.pendingText";
 const PENDING_ID_KEY = "bamos.pendingId";
 const PENDING_HOME_ADDRESS_KEY = "bamos.pendingHomeAddress";
+const PENDING_DESTINATION_KEY = "bamos.pendingDestination";
+const PENDING_START_DATE_KEY = "bamos.pendingStartDate";
 
 export default function CreatePage() {
   const router = useRouter();
   const [text, setText] = useState("");
   const [homeAddress, setHomeAddress] = useState("");
+  const [destination, setDestination] = useState("");
+  const [startDate, setStartDate] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -27,6 +31,8 @@ export default function CreatePage() {
     window.sessionStorage.setItem(PENDING_TEXT_KEY, text);
     window.sessionStorage.setItem(PENDING_ID_KEY, tempId);
     window.sessionStorage.setItem(PENDING_HOME_ADDRESS_KEY, homeAddress.trim());
+    window.sessionStorage.setItem(PENDING_DESTINATION_KEY, destination.trim());
+    window.sessionStorage.setItem(PENDING_START_DATE_KEY, startDate);
     if (homeAddress.trim()) saveHomeAddress(homeAddress.trim());
     router.push(`/upcoming?generating=${tempId}`);
   }
@@ -37,6 +43,27 @@ export default function CreatePage() {
       <p className="mt-1 text-sm text-neutral-500">
         輸入片段的時間、地點、活動，AI 會幫你規劃成完整行程表。
       </p>
+
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-sm font-semibold text-neutral-700">地區</label>
+          <input
+            value={destination}
+            onChange={(e) => setDestination(e.target.value)}
+            placeholder="例如：宜蘭（選填）"
+            className="mt-1.5 w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-800 shadow-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-neutral-700">日期</label>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="mt-1.5 w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-800 shadow-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+          />
+        </div>
+      </div>
 
       <label className="mt-4 block text-sm font-semibold text-neutral-700">住家地址</label>
       <input

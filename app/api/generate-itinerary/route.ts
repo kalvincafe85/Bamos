@@ -8,13 +8,17 @@ export async function POST(req: NextRequest) {
   if ("unauthorized" in auth) return auth.unauthorized;
 
   try {
-    const { text, homeAddress } = await req.json();
+    const { text, homeAddress, destination, startDate } = await req.json();
     if (!text || typeof text !== "string" || !text.trim()) {
       return NextResponse.json({ error: "請輸入行程內容" }, { status: 400 });
     }
 
     const todayISO = new Date().toISOString().slice(0, 10);
-    const draft = await generateItineraryDraft(text, todayISO, typeof homeAddress === "string" ? homeAddress : "");
+    const draft = await generateItineraryDraft(text, todayISO, {
+      homeAddress: typeof homeAddress === "string" ? homeAddress : "",
+      destination: typeof destination === "string" ? destination : "",
+      startDate: typeof startDate === "string" ? startDate : "",
+    });
 
     const itinerary: Itinerary = {
       id: crypto.randomUUID(),

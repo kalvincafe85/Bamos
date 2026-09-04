@@ -27,7 +27,8 @@ const SYSTEM_PROMPT = `你是專業的旅遊行程規劃師。使用者會給你
 - 若使用者沒說明某景點要停留多久，且你也無法從常識判斷，預設抓 90 分鐘 (1.5 小時)。
 - transit 的 minutes 是估計車程/步行分鐘數（不需要是 30 的倍數），departure 用上一個 activity 的 end，arrival 系統會自動計算（無條件進位到下個 30 分整點留緩衝），你只要給 departure 大致的值。
 - 每個 activity 要有：mapQuery（可直接拿去 Google 地圖搜尋的地點名稱，盡量包含縣市）、photoQuery（拿去搜圖用的簡短關鍵字，例如景點英文或中文名稱）、hours（營業時間，若不確定可省略此欄位）、parking（停車資訊，若不確定可省略此欄位）、description（50字以內的特色介紹，用溫暖、吸引人的文字）、category（attraction/meal/lodging/other 其中之一）。
-- 幫整趟行程想一個吸引人的標題（title），並判斷主要目的地城市/地區（destination，例如"南投"、"台北"，用來查天氣）。
+- 幫整趟行程想一個吸引人的標題（title），並判斷主要目的地城市/地區（destination，例如"南投"、"台北"，用來查天氣）。若使用者已指定目的地/地區，請直接採用該值作為 destination，不需要自行從內容判斷。
+- 若使用者已指定行程開始日期，行程第一天的 date 請從該日期開始（後續天數依你判斷的旅遊天數決定）；若沒有指定，才依「今天日期」與內容裡的相對時間描述（例如"明天"、"下週六"）自行判斷。
 - 最後生成 2-3 個 backupPlans（備用行程），是附近的替代景點，用於下雨、店家沒開、臨時有人不想去等情況，每個要有 name、reason（適用情境，例如"雨天備案"）、durationMin、desc（簡短介紹）。
 - 起床/準備時間反推：若使用者提到當天最早的「幾點出門/出發/集合」，且那是當天第一個事件，請往前推算 1.5 小時，在最前面插入一個活動區塊，title 為「起床 & 早餐」，時間為出發時間減 1.5 小時到出發時間，category 用 "other"，description 簡短提醒（例如「起床梳洗、吃份早餐，準備好精神出發」）。
 - 每一天都必須安排午餐（約 12:00-14:00 間）與晚餐（約 18:00-20:00 間）的用餐活動（category: "meal"），即使使用者沒有提到。若使用者沒指定餐廳，依當天行程動線在附近安排合理的美食建議（可以是真實知名店家，或合理描述如「當地小吃」），不可整段空白跳過用餐時間。
@@ -107,7 +108,7 @@ function buildToolSchema() {
 export async function generateItineraryDraft(
   userText: string,
   todayISO: string,
-  homeAddress: string = ""
+  options: { homeAddress?: string; destination?: string; startDate?: string } = {}
 ): Promise<ItineraryDraft> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not configured");
@@ -115,7 +116,13 @@ export async function generateItineraryDraft(
   const client = new Anthropic({ apiKey });
   const tool = buildToolSchema();
 
-  const homeAddressLine = homeAddress.trim() ? `\n使用者的住家地址：${homeAddress.trim()}` : "";
+  const homeAddress = options.homeAddress?.trim() ?? "";
+  const destination = options.destination?.trim() ?? "";
+  const startDate = options.startDate?.trim() ?? "";
+
+  const homeAddressLine = homeAddress ? `\n使用者的住家地址：${homeAddress}` : "";
+  const destinationLine = destination ? `\n使用者指定的目的地/地區：${destination}` : "";
+  const startDateLine = startDate ? `\n使用者指定的行程開始日期：${startDate}` : "";
 
   const message = await client.messages.create({
     model: "claude-sonnet-4-5",
@@ -126,7 +133,7 @@ export async function generateItineraryDraft(
     messages: [
       {
         role: "user",
-        content: `今天日期是 ${todayISO}。${homeAddressLine}\n以下是使用者的片段行程筆記，請規劃成完整行程：\n\n${userText}`,
+        content: `今天日期是 ${todayISO}。${homeAddressLine}${destinationLine}${startDateLine}\n以下是使用者的片段行程筆記，請規劃成完整行程：\n\n${userText}`,
       },
     ],
   });
